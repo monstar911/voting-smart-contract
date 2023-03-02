@@ -1,0 +1,12 @@
+[package]
+name = 'voting-system'
+version = '1.0.0'
+
+
+[addresses]
+voting_system = "0x1"
+Std = "0x1"
+aptos_std = "0x1"
+
+[dependencies]
+AptosFramework = { local = "../../aptos-core/aptos-move/framework/aptos-framework"}
