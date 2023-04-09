@@ -3,6 +3,13 @@ module std::Voting
     use std::vector;
     use std::simple_map::{SimpleMap,Self};
     use std::signer; 
+    use aptos_framework::account;
+
+
+    const E_CANDIDATE_ALREADY_EXISTS:u64=1;
+    const E_ALREADY_VOTED:u64=2;
+    const E_YOU_ARE_NOT_THE_OWNER:u64=3;
+    const E_NO_ONE_VOTED:u64=4;
 
     struct CandidateList has key
     {
@@ -17,14 +24,13 @@ module std::Voting
         voters_list : SimpleMap<address,u8>
     }
 
-    entry fun making_candidiate(acc: &signer,c_addrx:address) acquires CandidateList
+    public entry fun making_candidiate(acc: &signer,c_addrx:address) acquires CandidateList
     {   
         let signer_address = signer::address_of(acc);
-        assert!(signer_address==@my_addrx,1); //you are not the owner
+        assert!(signer_address==@my_addrx,E_YOU_ARE_NOT_THE_OWNER);
 
         if(!exists<CandidateList>(signer_address))
-        {
-            // let map:SimpleMap<address,u64> = simple_map::create();
+        { 
             let r = CandidateList{
                 candidate_list:simple_map::create(),
                 c_list:vector::empty<address>(),
@@ -38,7 +44,7 @@ module std::Voting
 
         
         
-        assert!(simple_map::contains_key(&mut map.candidate_list,&c_addrx),1);  //candidate already exists
+        assert!(simple_map::contains_key(&mut map.candidate_list,&c_addrx)==false,E_CANDIDATE_ALREADY_EXISTS); 
 
         simple_map::add(&mut map.candidate_list,c_addrx ,0);
         vector::push_back(&mut map.c_list, c_addrx);
@@ -49,7 +55,7 @@ module std::Voting
     public entry fun giving_vote(acc: &signer,c_addrx:address,v_addrx:address) acquires VoterList ,CandidateList
     {
         let signer_address = signer::address_of(acc);
-        assert!(signer_address==@my_addrx,1); //you are not the owner
+        assert!(signer_address==@my_addrx,E_YOU_ARE_NOT_THE_OWNER); 
         
         if(!exists<CandidateList>(signer_address))
         {
@@ -74,7 +80,7 @@ module std::Voting
         let tmp= borrow_global_mut<VoterList>(@my_addrx);
 
 
-        assert!(simple_map::contains_key(&mut tmp.voters_list,&v_addrx)==true,1);//you have already voted
+        assert!(simple_map::contains_key(&mut tmp.voters_list,&v_addrx)==false,E_ALREADY_VOTED);
         
         simple_map::add(&mut tmp.voters_list,v_addrx ,1);
 
@@ -91,15 +97,15 @@ module std::Voting
     } 
 
 
-    entry fun declare_winner(acc: &signer)  acquires CandidateList
+    public entry fun declare_winner(acc: &signer)  acquires CandidateList
     {
         let signer_address = signer::address_of(acc);
-        assert!(signer_address==@my_addrx,1); //you are not the owner
+        assert!(signer_address==@my_addrx,1); 
 
 
         if(!exists<CandidateList>(signer_address))
         {
-            abort 1 //no one vote
+            abort E_NO_ONE_VOTED 
 
         };
 
@@ -131,6 +137,54 @@ module std::Voting
 
 
     }
+
+
+    #[test(admin = @my_addrx)]
+    public entry fun test_flow(admin: signer) acquires CandidateList,VoterList {
+
+        account::create_account_for_test(signer::address_of(&admin));
+
+        //adding candidates
+
+        making_candidiate(&admin,@0x1);
+        making_candidiate(&admin,@0x2);
+        making_candidiate(&admin,@0x3);
+        
+        //This will result in error as the candidate already exists
+        // making_candidiate(&admin,@0x3);
+
+
+
+
+        //giving votes
+        giving_vote(&admin,@0x1,@0x11);
+        giving_vote(&admin,@0x3,@0x13);
+        giving_vote(&admin,@0x2,@0x14);
+        giving_vote(&admin,@0x3,@0x16);
+        giving_vote(&admin,@0x1,@0x17);
+        giving_vote(&admin,@0x3,@0x15);
+        giving_vote(&admin,@0x2,@0x19);
+        giving_vote(&admin,@0x2,@0x21);
+        giving_vote(&admin,@0x2,@0x33);
+
+        //This will result in error as same voter cannot vote again
+        //giving_vote(&admin,@0x2,@0x33);
+
+
+
+        //declaring winner
+
+        declare_winner(&admin);
+
+        let canList = borrow_global<CandidateList>(signer::address_of(&admin));
+
+        assert!(canList.winner == @0x2,1);
+
+
+
+
+    }
+
 
 
 
